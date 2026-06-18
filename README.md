@@ -271,5 +271,5 @@ cmd 1312 is also unhandled and hits "Not implemented." Since cmd 2037 fires firs
 
 ## Upstream Status
 
-- [bropat/eufy-security-client PR #888](https://github.com/bropat/eufy-security-client/pull/888): open, unmerged as of 2026-06-18, with two failing CI checks (a `tsc` `TS2341` private-member error and a prettier nit). The fix is functionally complete on `develop`; this add-on backports it to the released 3.8.0 build (see "Relationship to PR #888" above).
+- [bropat/eufy-security-client PR #888](https://github.com/bropat/eufy-security-client/pull/888): open as of 2026-06-18, **CI now green**. The author pushed commit `7267a18` routing the event through `Station` (the same approach this add-on uses) — `tsc`, prettier, and all 302 Jest tests pass (independently verified). Awaiting maintainer (@bropat) merge. The fix is functionally complete on `develop`; this add-on backports it to the released 3.8.0 build (see "Relationship to PR #888" above).
 - [bropat/hassio-eufy-security-ws](https://github.com/bropat/hassio-eufy-security-ws): no equivalent issue/PR filed.
