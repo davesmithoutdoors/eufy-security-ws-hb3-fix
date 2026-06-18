@@ -51,16 +51,23 @@ HB3 station
                                                  ← HA binary sensor flips → automation fires
 ```
 
-**Four** files are patched in the installed `eufy-security-client` build. PR #888 covers two of them (`session.js` + `types.js`); the other two (`station.js`, `eufysecurity.js`) are **not** in PR #888 and are what make the fix actually work in v3.8.0:
+**Four** files are patched in the installed `eufy-security-client` build:
 
-| File | In PR #888? | Change |
-|------|-------------|--------|
-| `p2p/session.js` | Yes (adapted) | Add `else if (json.cmd === 2037)` handler in `handleDataControl`; parse inner JSON; emit `"push notification"` |
-| `p2p/types.js` | Yes | Add `CMD_CAMERA_PUSH_NOTIFY = 2037` to the `CommandType` enum |
-| `http/station.js` | **No** | Add `p2pSession.on("push notification", ...)` listener; route through `processPushNotification` and re-emit |
-| `eufysecurity.js` | **No** | Add `station.on("push notification", ...)` listener; call `onPushMessage` |
+| File | Change |
+|------|--------|
+| `p2p/session.js` | Add `else if (json.cmd === 2037)` handler in `handleDataControl`; parse inner JSON; emit `"push notification"` |
+| `p2p/types.js` | Add `CMD_CAMERA_PUSH_NOTIFY = 2037` to the `CommandType` enum |
+| `http/station.js` | Add `p2pSession.on("push notification", ...)` listener; route through `processPushNotification` and re-emit |
+| `eufysecurity.js` | Add `station.on("push notification", ...)` listener; call `onPushMessage` |
 
-PR #888 only patched `session.ts` and `types.ts`. It does NOT add the `station.js` and `eufysecurity.js` listeners needed to propagate the event through the chain in v3.8.0, so on its own it emits the `"push notification"` event into the void.
+**Relationship to PR #888.** PR #888 (against `develop`) already fixes this upstream — it patches four things: `types.ts` (enum), `interfaces.ts` (event declaration), `session.ts` (emit on cmd 2037), and `eufysecurity.ts` (a listener that wires the event through). It does **not** touch `station.ts`; instead `EufySecurity` listens directly on `station.p2pSession`. So PR #888 is functionally complete on `develop` — this add-on is **not** filling a gap in the PR, it is a **backport of the same fix to the released 3.8.0 build** (which has none of these changes).
+
+Two reasons the PR's files can't just be dropped onto the released build:
+
+1. PR #888 targets `develop` and is unmerged (CI currently failing), so it isn't in any release.
+2. Its `session.ts` depends on a `./adts` module that does not exist in 3.8.0 (see Bug 2), so the patch must be re-derived against the released source.
+
+This add-on routes the event via the library's **conventional two-hop P2P pattern** — `p2pSession` → `Station` relay/re-emit → `EufySecurity` `station.on(...)` — the same shape used for every other P2P event (e.g. `"sensor status"`). That is why `station.js` is patched in addition to `eufysecurity.js`. PR #888's single-listener `station.p2pSession` shortcut would let you drop `station.js` for a three-file patch, but it reaches into `Station`'s internals and is less consistent with the surrounding code; the two-hop form is intentional, not redundant.
 
 ---
 
@@ -158,13 +165,13 @@ Then apply a **minimal patch** to the original file rather than replacing it who
 
 ---
 
-### Bug 4 — PR #888 fix is incomplete for v3.8.0 (only 2 of 3 needed files)
+### Bug 4 — the released 3.8.0 build has no downstream listener at all
 
-**Symptom**: After applying PR #888's session.js patch (adapted for v3.8.0), the `"push notification"` event IS emitted from `P2PClientProtocol`, but nothing happens downstream.
+**Symptom**: After adding the `session.js` cmd-2037 handler (adapted from PR #888), the `"push notification"` event IS emitted from `P2PClientProtocol`, but nothing happens downstream.
 
-**Cause**: In v3.8.0, `Station` does not listen for `"push notification"` from `p2pSession`, and `EufySecurity` does not listen for `"push notification"` from `Station`. The event is emitted into the void.
+**Cause**: The **released 3.8.0 build** (bundled in eufy-security-ws 2.1.0) has no listener for `"push notification"` anywhere on the P2P path — not in `station.js` and not in `eufysecurity.js`. (PR #888 adds such a listener, but only on the `develop` branch, which isn't what the add-on ships.) So on the released build the event is emitted into the void.
 
-**Fix**: Patch both `station.js` and `eufysecurity.js` to wire the event through.
+**Fix**: Patch `station.js` and `eufysecurity.js` to wire the event through using the library's standard two-hop relay pattern (see "Relationship to PR #888" above).
 
 ---
 
