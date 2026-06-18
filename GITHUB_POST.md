@@ -96,7 +96,7 @@ HB3 P2P → CMD_NOTIFY_PAYLOAD (1351)
           eufysecurity.ts listener
             onPushMessage(msg)
               for each device: device.processPushNotification(station, msg, eventDuration)
-                Camera class (line ~2829):
+                Camera class (search device.js for `CusPushEvent.SECURITY`):
                   else if (msg.msg_type === DeviceType.HB3)  // 18
                     switch (msg.event_type):
                       MOTION_DETECTION (3101): updateProperty(DeviceMotionDetected, true)

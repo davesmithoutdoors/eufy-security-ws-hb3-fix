@@ -1,0 +1,37 @@
+name: "eufy-security-ws (HB3 fix)"
+version: "2.1.0-hb3fix4"
+slug: eufy_ws_hb3fix
+description: >
+  eufy-security-ws 2.1.0 patched for HomeBase 3 P2P motion/person events
+  (CMD_CAMERA_PUSH_NOTIFY cmd 2037). See PR #888 in bropat/eufy-security-client.
+url: "https://github.com/bropat/hassio-eufy-security-ws"
+arch:
+  - amd64
+init: false
+host_network: true
+options:
+  username: ""
+  password: ""
+  country: "US"
+  port: 3000
+  polling_interval: 10
+  accept_invitations: true
+  debug: true
+  ipv4first: false
+  event_duration: 10
+  trusted_device_name: "homeassistant"
+  stations: []
+schema:
+  username: str
+  password: str
+  country: str
+  port: int
+  polling_interval: int(1,1440)
+  accept_invitations: bool
+  debug: bool
+  ipv4first: bool
+  event_duration: int(1,3600)?
+  trusted_device_name: str?
+  stations:
+    - serial_number: str
+      ip_address: str

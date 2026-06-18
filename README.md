@@ -51,15 +51,16 @@ HB3 station
                                                  ← HA binary sensor flips → automation fires
 ```
 
-Three files needed patching in the installed `eufy-security-client` build (not just the two in PR #888):
+**Four** files are patched in the installed `eufy-security-client` build. PR #888 covers two of them (`session.js` + `types.js`); the other two (`station.js`, `eufysecurity.js`) are **not** in PR #888 and are what make the fix actually work in v3.8.0:
 
-| File | Change |
-|------|--------|
-| `p2p/session.js` | Add `else if (json.cmd === 2037)` handler in `handleDataControl`; parse inner JSON; emit `"push notification"` |
-| `http/station.js` | Add `p2pSession.on("push notification", ...)` listener; route through `processPushNotification` and re-emit |
-| `eufysecurity.js` | Add `station.on("push notification", ...)` listener; call `onPushMessage` |
+| File | In PR #888? | Change |
+|------|-------------|--------|
+| `p2p/session.js` | Yes (adapted) | Add `else if (json.cmd === 2037)` handler in `handleDataControl`; parse inner JSON; emit `"push notification"` |
+| `p2p/types.js` | Yes | Add `CMD_CAMERA_PUSH_NOTIFY = 2037` to the `CommandType` enum |
+| `http/station.js` | **No** | Add `p2pSession.on("push notification", ...)` listener; route through `processPushNotification` and re-emit |
+| `eufysecurity.js` | **No** | Add `station.on("push notification", ...)` listener; call `onPushMessage` |
 
-PR #888 only patched `session.ts` and `types.ts` (adds the CommandType enum entry). It does NOT add the station.js and eufysecurity.js listeners needed to propagate the event through the chain in v3.8.0.
+PR #888 only patched `session.ts` and `types.ts`. It does NOT add the `station.js` and `eufysecurity.js` listeners needed to propagate the event through the chain in v3.8.0, so on its own it emits the `"push notification"` event into the void.
 
 ---
 
@@ -80,11 +81,14 @@ The official add-on (`402f1039_eufy_security_ws`) installs from the bropat repos
 ```
 /opt/docker/eufy-patch/docker-build/
   Dockerfile
+  config.yaml     → add-on config (mirror of /addons/eufy_ws_hb3fix/config.yaml; init: false is the Bug 1 fix)
   session.js      → patched p2p/session.js
   types.js        → patched p2p/types.js (adds CMD_CAMERA_PUSH_NOTIFY = 2037 to CommandType enum)
   station.js      → patched http/station.js
   eufysecurity.js → patched eufysecurity.js
 ```
+
+> `config.yaml` is version-controlled here so the add-on can be rebuilt from git alone after a HAOS rebuild. It is **not** consumed by `docker-build/Dockerfile` — it belongs to the HAOS add-on (`/addons/eufy_ws_hb3fix/`). Keep the two copies in sync; bump `version` in both when re-patching.
 
 ### Files on HAOS
 
@@ -111,6 +115,7 @@ The official add-on (`402f1039_eufy_security_ws`) installs from the bropat repos
      -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
      http://supervisor/addons/local_eufy_ws_hb3fix/update
    ```
+   > Note the `local_` prefix: the supervisor API addresses local add-ons as `local_<slug>`, so the slug `eufy_ws_hb3fix` becomes `local_eufy_ws_hb3fix` in these endpoints.
 4. Start the add-on from HA UI → Settings → Add-ons → eufy-security-ws (HB3 fix)
 
 ---
@@ -167,7 +172,7 @@ Then apply a **minimal patch** to the original file rather than replacing it who
 
 **Initially suspected**: Including `type: innerPayload.msg_type` (= 18) in the emitted push notification would cause `Camera.processPushNotification` to enter the CUS cloud push branch instead of the HB3 branch.
 
-**Actually**: The `Camera` class's condition (line 2797 of device.js) is:
+**Actually**: The `Camera` class's condition (in `device.js` — search for `CusPushEvent.SECURITY` rather than relying on a line number, which drifts between builds) is:
 ```js
 if (message.event_type === CusPushEvent.SECURITY && message.device_sn === this.getSerial())
 ```
